@@ -1,5 +1,5 @@
 --[[
-  Paintshop — drawing on car skins in Assetto Corsa.
+  Paintshop 鈥?drawing on car skins in Assetto Corsa.
 
   This file is the entry point only: it wires the modules together and forwards the callbacks
   the manifest asks for. The actual work lives in:
@@ -23,34 +23,34 @@ local appDir = __dirname
 ---Loads a module file relative to the app folder.
 ---@param name string path without the .lua extension
 ---@return any
-local function load(name)
+local function loadModule(name)
     return dofile(appDir .. '/' .. name .. '.lua')
 end
 
-local env = load('core/env')(appDir)
-local S = load('core/state')()
-local stored = load('core/storage')()
+local env = loadModule('core/env')(appDir)
+local S = loadModule('core/state')()
+local stored = loadModule('core/storage')()
 
-local brush = load('core/brush')
-local assets = load('core/assets')
-local canvas = load('core/canvas')
-local history = load('core/history')
-local autosave = load('core/autosave')
-local camera = load('core/camera')
-local masking = load('core/masking')
-local projection = load('core/projection')
-local renderer = load('core/render')
-local painting = load('core/painting')
-local selection = load('core/selection')
-local session = load('core/session')
+local brush = loadModule('core/brush')
+local assets = loadModule('core/assets')
+local canvas = loadModule('core/canvas')
+local history = loadModule('core/history')
+local autosave = loadModule('core/autosave')
+local camera = loadModule('core/camera')
+local masking = loadModule('core/masking')
+local projection = loadModule('core/projection')
+local renderer = loadModule('core/render')
+local painting = loadModule('core/painting')
+local selection = loadModule('core/selection')
+local session = loadModule('core/session')
 
-local icons = load('gui/icons').init()
-local palette = load('gui/palette').init()
-local widgets = load('gui/widgets')
-local toolbar = load('gui/toolbar')
-local toolPanel = load('gui/tool_panel')
-local gizmo = load('gui/masking_gizmo')
-local registry = load('tools/registry')
+local icons = loadModule('gui/icons').init()
+local palette = loadModule('gui/palette').init()
+local widgets = loadModule('gui/widgets')
+local toolbar = loadModule('gui/toolbar')
+local toolPanel = loadModule('gui/tool_panel')
+local gizmo = loadModule('gui/masking_gizmo')
+local registry = loadModule('tools/registry')
 
 assets.init(env, S, stored)
 canvas.init(env, S, stored)
@@ -86,7 +86,7 @@ registry.init({
     history = history,
     masking = masking,
     projection = projection,
-    load = load
+    loadModule = loadModule
 })
 session.setToolDisposer(registry.disposeResources)
 

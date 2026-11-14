@@ -1,4 +1,4 @@
--- Tool registry: the ordered tool list, the active tool, and the temporary switch.
+﻿-- Tool registry: the ordered tool list, the active tool, and the temporary switch.
 --
 -- `stored.activeToolIndex` is a 1-based position in this array, so it goes stale whenever the
 -- list changes; it is clamped here instead of being trusted downstream.
@@ -24,7 +24,7 @@ function M.init(deps)
     M.S, M.stored = deps.S, deps.stored
     M.tools = {}
     for _, name in ipairs(TOOL_MODULES) do
-        table.insert(M.tools, deps.load(name).create(deps))
+        table.insert(M.tools, deps.loadModule(name).create(deps))
     end
 
     M.stored.activeToolIndex = math.clamp(M.stored.activeToolIndex or 1, 1, #M.tools)
