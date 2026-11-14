@@ -276,6 +276,16 @@ local saveFilename
 local undoStack = {}
 local redoStack = {}
 
+-- Session-scoped resources and scratch state. Declared here (not next to their first use)
+-- so that releaseEditingResources() can close over them and reset them on every session end.
+local accessibleData ---@type ui.ExtraCanvasData
+local otherSideShot ---@type ac.GeometryShot
+local otherSidePhase = -1
+local otherSideSide = 0
+local bakKsAmbient
+local maskingDirty = true
+local smoothRayDir
+
 local maskingActive = false
 local maskingPos = vec3(0, 0.3, 0)
 local maskingDir = vec3(0, 1, 0)
@@ -308,16 +318,51 @@ local function drawWithAO(baseCanvas, aoTexture)
     })
 end
 
+-- Releases every resource that belongs to one editing session. Anything created while a
+-- mesh is selected has to be dropped here, otherwise the next session starts with stale
+-- canvases and shots still bound to the previous mesh.
+local function releaseEditingResources()
+    if accessibleData then
+        accessibleData:dispose()
+        accessibleData = nil
+    end
+    if otherSideShot then
+        otherSideShot:dispose()
+        otherSideShot = nil
+    end
+    if selectedBrushOutline then
+        selectedBrushOutline:dispose()
+        selectedBrushOutline = nil
+    end
+    if carPreview then
+        carPreview:dispose()
+        carPreview = nil
+    end
+    editingCanvas = nil
+    aoCanvas = nil
+    maskingCanvas = nil
+    otherSidePhase = -1
+    otherSideSide = 0
+    bakKsAmbient = nil
+    maskingDirty = true
+    selectedBrushOutlineDirty = true
+    lastRay = nil
+    smoothRayDir = nil
+    brushDistance = 1
+    drawing = false
+    ignoreMousePress = true
+end
+
 local function finishEditing()
     selectedMeshes:setMaterialTexture('txDiffuse', carTexture):setMotionStencil(taaFix.Off)
     selectedMeshes = nil
     carTexture = nil
-    editingCanvas = nil
     saveFilename = nil
     -- maskingCarView = nil
     undoStack = {}
     redoStack = {}
     changesMade = 0
+    releaseEditingResources()
     ac.setWindowTitle('paintshop', nil)
 
     if camera then
@@ -350,8 +395,6 @@ local function rescanStickers()
     end)
     selectedStickerSet = stickers[stored.selectedStickerSet]
 end
-
-local accessibleData ---@type ui.ExtraCanvasData
 
 local function maskingBackup()
     local b = stringify({maskingPos, maskingDir, maskingPoints}, true)
@@ -415,9 +458,13 @@ local function undoMemoryFootpring()
 end
 
 local function updateAccessibleData()
+    if editingCanvas == nil then
+        return
+    end
     editingCanvasPhase = editingCanvasPhase + 1
     if accessibleData then
         accessibleData:dispose()
+        accessibleData = nil
     end
     editingCanvas:accessData(function(err, data)
         if data then
@@ -1726,13 +1773,10 @@ local function updateBrushOutline(stickerMode)
     end)
 end
 
-local otherSideShot ---@type ac.GeometryShot
-local otherSidePhase = -1
-local otherSideSide = 0
-local bakKsAmbient
-
 local function updateAOCanvas()
-    if aoCanvas == nil then
+    -- Both canvases are created and destroyed together, but the AO pass also reads
+    -- editingCanvas and the selected mesh, so guard on all three.
+    if aoCanvas == nil or editingCanvas == nil or selectedMeshes == nil then
         return
     end
 
@@ -1802,14 +1846,16 @@ local function updateAOCanvas()
     end)
 end
 
-local maskingDirty = true
-
 local function updateMaskingCanvas()
     if not maskingActive then
         if maskingCanvas and maskingDirty then
             maskingDirty = false
             maskingCanvas:clear(rgbm.colors.white)
         end
+        return
+    end
+
+    if selectedMeshes == nil then
         return
     end
 
@@ -1870,8 +1916,6 @@ local function cameraUpdate()
         end
     end
 end
-
-local smoothRayDir
 
 local function paintUpdate()
     if activeTool.brush then
