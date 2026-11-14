@@ -321,10 +321,17 @@ local function drawWithAO(baseCanvas, aoMap)
     })
 end
 
+-- Assigned once the tool table exists; lets session teardown release per-tool resources
+-- (geometry shots, generated canvases) without core code knowing about individual tools.
+local disposeToolResources
+
 -- Releases every resource that belongs to one editing session. Anything created while a
 -- mesh is selected has to be dropped here, otherwise the next session starts with stale
 -- canvases and shots still bound to the previous mesh.
 local function releaseEditingResources()
+    if disposeToolResources then
+        disposeToolResources()
+    end
     if accessibleData then
         accessibleData:dispose()
         accessibleData = nil
@@ -1645,6 +1652,36 @@ local tools = {{
 -- The stored index is a 1-based position in the tools array, so it goes stale whenever the
 -- tool list changes. Clamp it once here instead of trusting it everywhere downstream.
 stored.activeToolIndex = math.clamp(stored.activeToolIndex or 1, 1, #tools)
+
+-- Tools own their generated resources; this is the single place that frees them.
+disposeToolResources = function()
+    for _, tool in ipairs(tools) do
+        if tool._shot then
+            tool._shot:dispose()
+            tool._shot = nil
+        end
+        if tool._shotBlurred then
+            tool._shotBlurred:dispose()
+            tool._shotBlurred = nil
+        end
+        if tool._shotSharpened then
+            tool._shotSharpened:dispose()
+            tool._shotSharpened = nil
+        end
+        if tool._labelCanvas then
+            tool._labelCanvas:dispose()
+            tool._labelCanvas = nil
+        end
+        if tool._previewCanvas then
+            tool._previewCanvas:dispose()
+            tool._previewCanvas = nil
+        end
+        tool._rayPos, tool._rayDir = nil, nil
+        tool._ksAmbient = nil
+        tool._moving = false
+        tool._d = nil
+    end
+end
 
 local activeTool = tools[stored.activeToolIndex]
 local previousToolIndex = stored.activeToolIndex
