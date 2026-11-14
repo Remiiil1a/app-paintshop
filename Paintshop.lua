@@ -17,6 +17,10 @@ local selectedMeshes ---@type ac.SceneReference
 local carTexture
 local aoTexture
 
+-- Size of every full-resolution canvas (editing, AO and masking). All three have to
+-- match: the masking canvas is sampled through UVs of the editing canvas.
+local texSize = vec2(4096, 4096)
+
 local shortcuts = {
     undo = ui.shortcut({
         key = ui.KeyIndex.Z,
@@ -1830,7 +1834,6 @@ end
 
 local function cameraUpdate()
     if editingCanvas == nil then
-        local texSize = vec2(4096, 4096)
         editingCanvas = ui.ExtraCanvas(texSize):clear(rgbm.new(stored.bgColor.rgb, 1))
         aoCanvas = ui.ExtraCanvas(texSize, 4, render.AntialiasingMode.CMAA)
         selectedMeshes:setMaterialTexture('txDiffuse', aoCanvas)
