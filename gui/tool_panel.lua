@@ -31,8 +31,11 @@ function M.draw()
         if bg then
             ui.pushStyleColor(ui.StyleColor.Button, bg)
         end
-        if M.widgets.IconButton(v.icon, v.name, activeTool == v) or v.key and v.key(false) then
-            M.registry.select(i, v.key ~= nil)
+        -- A click is a permanent switch; a key press is temporary and reverts on release.
+        local clicked = M.widgets.IconButton(v.icon, v.name, activeTool == v)
+        local keyPressed = v.key and v.key(false)
+        if clicked or keyPressed then
+            M.registry.select(i, keyPressed and not clicked)
         end
         if bg then
             ui.popStyleColor()
@@ -60,6 +63,7 @@ function M.draw()
     ui.offsetCursorY(20)
 
     -- Temporary tool switch: holding a tool's key shows that tool, releasing it goes back.
+    -- Only a key-hold sets toolSwitched, so a click never triggers this path.
     local current = M.registry.getActive()
     if M.registry.toolSwitched ~= 0 and not (current.key and current.key:down()) then
         if ui.time() > M.registry.toolSwitched + 0.2 then
@@ -68,7 +72,6 @@ function M.draw()
             M.registry.toolSwitched = 0
         end
     end
-
     if M.shortcuts.toggleMasking() then
         S.maskingActive = not S.maskingActive
     end

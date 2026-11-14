@@ -31,13 +31,17 @@ function M.release()
     local camera = S.camera
     local releaseID
     releaseID = setInterval(function()
+        -- The camera may have been disposed elsewhere (hiding the window does that), in which
+        -- case this interval has nothing left to fade.
+        if S.camera ~= camera then
+            clearInterval(releaseID)
+            return
+        end
         camera.ownShare = math.applyLag(camera.ownShare, 0, 0.85, ac.getDeltaT())
         if camera.ownShare < 0.001 then
             clearInterval(releaseID)
             camera:dispose()
-            if S.camera == camera then
-                S.camera = nil
-            end
+            S.camera = nil
         end
     end)
 end

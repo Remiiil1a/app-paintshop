@@ -141,6 +141,9 @@ function script.onWorldUpdate(dt)
     if S.appVisible and S.selectedMeshes ~= nil then
         -- when painting, easier to not wait for async images to load
         ui.setAsynchronousImagesLoading(false)
+        -- The world update can run before script.update in a frame, so make sure the canvases
+        -- exist before anything tries to draw into them.
+        canvas.ensure()
         painting.update(registry.getActive())
     end
 end
