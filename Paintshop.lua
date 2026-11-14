@@ -935,9 +935,27 @@ local function BrushBlock(brush)
     end)
 end
 
+-- Rebuilds the masking plane from the four control points. The plane normal comes from the
+-- two point pairs, and the remaining points are pushed onto that plane. Both orthogonal
+-- bases used below are cross products with maskingDir, so their Z and X components are
+-- proportional to maskingDir.y: when the normal is horizontal the plane does not constrain
+-- Y at all and the divisions would produce inf/NaN. Those cases are handled explicitly.
 local function fitMaskingPoints(fitFirst)
+    local normal = math.cross(maskingPoints[1] - maskingPoints[2], maskingPoints[4] - maskingPoints[3])
+    if normal:dot(normal) < 1e-12 then
+        -- Control points are collinear: there is no plane to fit.
+        return
+    end
+    maskingDir = normal:normalize()
+
+    if math.abs(maskingDir.y) < 1e-6 then
+        -- Plane is parallel to the Y axis, so Y is unconstrained: keep the points as they are.
+        maskingPos = fitFirst and (maskingPoints[1] + maskingPoints[2]) / 2 or
+                        (maskingPoints[3] + maskingPoints[4]) / 2
+        return
+    end
+
     if fitFirst then
-        maskingDir = math.cross(maskingPoints[1] - maskingPoints[2], maskingPoints[4] - maskingPoints[3]):normalize()
         maskingPos = (maskingPoints[1] + maskingPoints[2]) / 2
         local ort1 = math.cross(maskingDir, vec3(1, 0, 0)):normalize()
         local ort2 = math.cross(maskingDir, vec3(0, 0, 1)):normalize()
@@ -946,7 +964,6 @@ local function fitMaskingPoints(fitFirst)
         maskingPoints[4] = vec3(maskingPoints[4].x,
             maskingPos.y - maskingPos.z * ort1.y / ort1.z + ort2.y * maskingPoints[4].x / ort2.x, 0)
     else
-        maskingDir = math.cross(maskingPoints[1] - maskingPoints[2], maskingPoints[4] - maskingPoints[3]):normalize()
         maskingPos = (maskingPoints[3] + maskingPoints[4]) / 2
         local ort2 = math.cross(maskingDir, vec3(0, 0, 1)):normalize()
         local ort1 = math.cross(maskingDir, vec3(1, 0, 0)):normalize()
