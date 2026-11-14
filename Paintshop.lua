@@ -2043,6 +2043,11 @@ local function cameraUpdate()
 end
 
 local function paintUpdate()
+    -- The canvases are created in cameraUpdate(), which runs from script.update; the world
+    -- update callback can fire first, so nothing here may assume they exist yet.
+    if editingCanvas == nil or selectedMeshes == nil then
+        return
+    end
     if activeTool.brush then
         if uiState.isMouseLeftKeyDown then
             if drawing then
@@ -2073,14 +2078,19 @@ local function paintUpdate()
                         local color = activeTool:brushColor()
 
                         if brush.smoothing > 0 then
-                            smoothRayDir = math.applyLag(smoothRayDir, ray.dir, brush.smoothing ^ 0.3 * 0.9, 0.02)
+                            -- smoothRayDir is nil on the first frame of a stroke.
+                            smoothRayDir = smoothRayDir and
+                                              math.applyLag(smoothRayDir, ray.dir, brush.smoothing ^ 0.3 * 0.9, 0.02) or
+                                              ray.dir:clone()
                             ray.dir:set(smoothRayDir)
                         end
 
                         local distance = ray.pos:clone():addScaled(ray.dir, brushDistance):distance(lastRay.pos:clone()
                             :addScaled(lastRay.dir, lastBrushDistance))
-                        if distance > brush.brushStepSize then
-                            local steps = math.min(100, math.floor(0.5 + distance / brush.brushStepSize))
+                        -- A zero step size (possible with an old saved config) would divide by zero.
+                        local stepSize = math.max(brush.brushStepSize, 1e-4)
+                        if distance > stepSize then
+                            local steps = math.min(100, math.floor(0.5 + distance / stepSize))
                             for i = 1, steps do
                                 local p = math.lerp(lastRay.pos, ray.pos, i / steps)
                                 local d = math.lerp(lastRay.dir, ray.dir, i / steps)
@@ -2105,7 +2115,7 @@ local function paintUpdate()
                     end
                     setTimeout(function()
                         -- adding undo in the next frame, so that dragging mask could cancel drawing operation
-                        if drawing then
+                        if drawing and editingCanvas then
                             addUndo(editingCanvas:backup())
                         end
                     end)
