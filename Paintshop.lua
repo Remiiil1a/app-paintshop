@@ -250,12 +250,40 @@ local stored = ac.storage {
     hasPen = false
 }
 
+-- ac.storage keeps whatever was written by an older version of the app, so every field is
+-- re-validated once at load. Without this a stale or hand-edited config reaches the UI and
+-- the projection code as a wrong type.
+local function validateStored()
+    local function asColor(value, fallback)
+        if type(value) == 'table' and value.r ~= nil then
+            return value
+        end
+        return fallback
+    end
+
+    stored.color = asColor(stored.color, rgbm(0, 0.2, 1, 0.5))
+    stored.bgColor = asColor(stored.bgColor, rgbm(1, 1, 1, 1))
+    stored.orbitCamera = stored.orbitCamera and true or false
+    stored.projectOtherSide = stored.projectOtherSide and true or false
+    stored.fontBold = stored.fontBold and true or false
+    stored.fontItalic = stored.fontItalic and true or false
+    stored.hasPen = stored.hasPen and true or false
+    stored.eyeDropperRange = math.clamp(tonumber(stored.eyeDropperRange) or 1, 1, 5)
+    stored.alignSticker = math.clamp(tonumber(stored.alignSticker) or 1, 1, 3)
+    stored.selectedStickerSet = math.max(tonumber(stored.selectedStickerSet) or 1, 1)
+    stored.activeToolIndex = math.max(tonumber(stored.activeToolIndex) or 1, 1)
+    stored.selectedFont = type(stored.selectedFont) == 'string' and stored.selectedFont or ''
+end
+
+validateStored()
+
 local function brushSizeMult(brush)
     local p = ac.getPenPressure()
     if p ~= 1 and not stored.hasPen then
         stored.hasPen = true
     end
-    return math.lerp(brush.penMinRadiusMult, 1, p)
+    -- penMinRadiusMult is user-editable; keep the multiplier in a sane range.
+    return math.lerp(math.clamp(brush.penMinRadiusMult or 0.05, 0, 1), 1, math.clamp(p or 1, 0, 1))
 end
 
 local function brushParams(key, defaultSize, defaultAlpha, extraFields)
@@ -1050,9 +1078,10 @@ end
 
 local function getBrushUp(dir, tool)
     local brush = tool.brush
-    return
-        mat4x4.rotation(math.rad(brush.brushRandomizedAngle and tool.__brushRandomAngle or brush.brushAngle), dir):transformVector(
-            car.up)
+    -- __brushRandomAngle is written by projectBrushTexture; fall back to the configured
+    -- angle so the first call of a session cannot rotate by nil.
+    local angle = brush.brushRandomizedAngle and (tool.__brushRandomAngle or brush.brushAngle) or brush.brushAngle
+    return mat4x4.rotation(math.rad(angle), dir):transformVector(car.up)
 end
 
 local fonts
@@ -1829,11 +1858,11 @@ local pdistance, pnormal, pdir = 1, vec3(), vec3(1, 0, 0)
 
 local function projectBrushTexture(tex, pos, dir, color, distance, previewMode, doNotUseToolProjParams)
     local brush = activeTool.brush
-    if not brush then
+    if not brush or selectedMeshes == nil then
         return
     end
 
-    if activeTool.stickerMode and not activeTool.stickerNoAlignment and stored.alignSticker > 1 then
+    if activeTool.stickerMode and not activeTool.stickerNoAlignment and (stored.alignSticker or 1) > 1 then
         local d, m = selectedMeshes:raycast(render.createRay(pos, dir), true, nil, pnormal)
         if d ~= -1 then
             pdir = m:getWorldTransformationRaw():transformVector(pnormal):scale(-1)
@@ -1853,10 +1882,12 @@ local function projectBrushTexture(tex, pos, dir, color, distance, previewMode, 
     if not previewMode and (not activeTool.stickerMode or activeTool.stickerContinious) then
         size = size * brushSizeMult(brush)
     end
-    if brush.brushAspectMult > 1 then
-        size.x = size.x * brush.brushAspectMult
+    -- brushAspectMult is user-editable and can reach zero through a stale saved config.
+    local aspect = math.max(brush.brushAspectMult or 1, 1e-3)
+    if aspect > 1 then
+        size.x = size.x * aspect
     else
-        size.y = size.y / brush.brushAspectMult
+        size.y = size.y / aspect
     end
     if brush.brushMirror then
         size.x = -size.x
