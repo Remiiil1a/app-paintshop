@@ -295,7 +295,7 @@ local maskingDir = vec3(0, 1, 0)
 local maskingCreatingFrom, maskingCreatingTo
 local maskingPoints = {vec3(0, 0.3, -1), vec3(0, 0.3, 1), vec3(-1, 0.3, 0), vec3(1, 0.3, 0)}
 
-local function drawWithAO(baseCanvas, aoTexture)
+local function drawWithAO(baseCanvas, aoMap)
     -- Draw base editing canvas and apply AO to it. One way of doing it is to use shading offset:
     -- ui.drawImage(aoTexture, 0, ui.windowSize())
     -- ui.setShadingOffset(0, 0, 0, -1)
@@ -309,7 +309,7 @@ local function drawWithAO(baseCanvas, aoTexture)
         blendMode = render.BlendMode.Opaque,
         textures = {
             txBase = baseCanvas,
-            txAO = aoTexture
+            txAO = aoMap
         },
         shader = [[float4 main(PS_IN pin) {
       float4 diffuseColor = txAO.SampleLevel(samLinear, pin.Tex, 0);
@@ -710,7 +710,8 @@ function palette.addToUserPalette(color)
         table.remove(palette.user, 1)
     end
     table.insert(palette.user, color:clone())
-    ac.storage.palette = stringify(palette.user, true)
+    -- ac.storage is a dynamic table in AC, not a read-only one.
+    ac.storage.palette = stringify(palette.user, true) -- luacheck: ignore 122
 end
 
 local function ColorTooltip(color)
@@ -1146,11 +1147,11 @@ local tools = {{
                         s.brush.brushTex = items[i][2]
                         selectedBrushOutlineDirty = true
                     end
-                    local s = vec2(90, 90 * size.y / size.x)
-                    if s.y > 54 then
-                        s:scale(54 / s.y)
+                    local iconSize = vec2(90, 90 * size.y / size.x)
+                    if iconSize.y > 54 then
+                        iconSize:scale(54 / iconSize.y)
                     end
-                    ui.addIcon(items[i][2], s, 0.5, nil, 0)
+                    ui.addIcon(items[i][2], iconSize, 0.5, nil, 0)
                     if ui.itemHovered() then
                         ui.setTooltip('Brush: ' .. items[i][1])
                     end
@@ -1470,9 +1471,9 @@ local tools = {{
         end
         ui.endGroup()
 
-        if ui.itemHovered() and not s._labelDirty then
+        if ui.itemHovered() and not s._labelDirty and s._labelCanvas then
             ui.tooltip(function()
-                ui.image(s.brush.brushTex, ui.imageSize(s.brush.brushTex):scale(0.5))
+                ui.image(s._labelCanvas, ui.imageSize(s._labelCanvas):scale(0.5))
             end)
         end
 
@@ -1491,8 +1492,9 @@ local tools = {{
         BrushBaseBlock(brush, 4, true)
 
         if s._labelDirty then
-            if s.brush.brushTex and type(s.brush.brushTex) ~= 'string' then
-                s.brush.brushTex:dispose()
+            if s._labelCanvas then
+                s._labelCanvas:dispose()
+                s._labelCanvas = nil
             end
             local font = selectedFont.source
             if stored.fontBold then
@@ -1505,7 +1507,7 @@ local tools = {{
             local fontSize = 256
             local canvasSize = ui.measureDWriteText(s._labelText, fontSize)
             canvasSize.x, canvasSize.y = math.max(canvasSize.x, fontSize), canvasSize.y + fontSize * 0.1
-            s.brush.brushTex = ui.ExtraCanvas(canvasSize):clear(rgbm.colors.transparent):update(function(dt)
+            s._labelCanvas = ui.ExtraCanvas(canvasSize):clear(rgbm.colors.transparent):update(function(dt)
                 ui.dwriteTextAligned(s._labelText, fontSize, ui.Alignment.Center, ui.Alignment.Center,
                     ui.availableSpace(), false, rgbm.colors.white)
             end)
@@ -1513,19 +1515,25 @@ local tools = {{
             s._labelDirty = false
         end
     end,
+    -- The label is rendered into a canvas, which cannot be persisted in ac.storage, so it
+    -- lives in tool state and is handed to the projection code through procBrushTex.
+    procBrushTex = function(s)
+        return s._labelCanvas
+    end,
     brush = brushParams('text', 0.2, 1),
     brushColor = function(s)
         return rgbm.new(stored.color.rgb, s.brush.brushAlpha)
     end,
     brushSize = function(s)
-        local size = ui.imageSize(s.brush.brushTex)
+        local size = s._labelCanvas and ui.imageSize(s._labelCanvas) or vec2(1, 1)
         return vec2(s.brush.brushSize, s.brush.brushSize * size.y / size.x)
     end,
     stickerMode = true,
     stickerContinious = false,
     blendMode = render.BlendMode.BlendPremultiplied,
     _labelText = ac.getDriverName(0),
-    _labelDirty = true
+    _labelDirty = true,
+    _labelCanvas = nil
 }, {
     name = 'Masking (M)',
     key = shortcuts.toolMasking,
@@ -1845,11 +1853,16 @@ local function updateAOCanvas()
 
         if otherSidePhase ~= editingCanvasPhase then
             otherSidePhase = editingCanvasPhase
+            -- The shot samples the mesh with the editing canvas bound, so the material has to
+            -- be restored even if the update throws.
             selectedMeshes:setMaterialTexture('txDiffuse', editingCanvas)
             selectedMeshes:setMaterialProperty('ksAmbient', 1)
-            otherSideShot:update(car.position, projectDir, car.up, 0)
+            local ok, err = pcall(otherSideShot.update, otherSideShot, car.position, projectDir, car.up, 0)
             selectedMeshes:setMaterialTexture('txDiffuse', aoCanvas)
             selectedMeshes:setMaterialProperty('ksAmbient', bakKsAmbient)
+            if not ok then
+                ac.warn('Failed to update the other-side shot: ' .. tostring(err))
+            end
         end
     end
 
@@ -1970,6 +1983,11 @@ local function paintUpdate()
                 local ray = render.createMouseRay()
                 local brush = activeTool.brush
                 local tex = activeTool.procBrushTex and activeTool:procBrushTex(ray, false) or brush.brushTex
+                -- Tools that generate their texture on demand (text, blur) can return nothing
+                -- on the first frame; projecting a nil texture would draw garbage.
+                if tex == nil or tex == '' then
+                    return
+                end
                 editingCanvas:update(function()
                     local lastBrushDistance = brushDistance
                     local hitDistance = selectedMeshes:raycast(ray)
