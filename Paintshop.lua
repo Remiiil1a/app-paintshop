@@ -510,9 +510,8 @@ local function IconButton(icon, tooltip, active, enabled)
 end
 
 local function DrawControl()
-    ac.setWindowTitle('paintshop',
-        string.gsub(saveFilename and saveFilename or carTexture .. ' (new)', '.+[/\\:]', '') ..
-            (changesMade ~= 0 and '*' or ''))
+    local title = saveFilename or (carTexture and (carTexture .. ' (new)')) or 'new texture'
+    ac.setWindowTitle('paintshop', string.gsub(title, '.+[/\\:]', '') .. (changesMade ~= 0 and '*' or ''))
 
     if IconButton(icons.Undo, nil, false, #undoStack > 0) or #undoStack > 0 and shortcuts.undo() then
         stepUndo()
@@ -1632,6 +1631,10 @@ local tools = {{
     _changing = false
 }}
 
+-- The stored index is a 1-based position in the tools array, so it goes stale whenever the
+-- tool list changes. Clamp it once here instead of trusting it everywhere downstream.
+stored.activeToolIndex = math.clamp(stored.activeToolIndex or 1, 1, #tools)
+
 local activeTool = tools[stored.activeToolIndex]
 local previousToolIndex = stored.activeToolIndex
 local toolSwitched = 0
@@ -1682,8 +1685,10 @@ local function SkinEditor()
 
     ui.offsetCursorY(20)
 
-    if toolSwitched ~= 0 and not activeTool.key:down() then
+    -- Temporary tool switch: holding a tool's key shows that tool, releasing it goes back.
+    if toolSwitched ~= 0 and not (activeTool.key and activeTool.key:down()) then
         if ui.time() > toolSwitched + 0.2 then
+            previousToolIndex = math.clamp(previousToolIndex, 1, #tools)
             activeTool = tools[previousToolIndex]
             toolSwitched = 0
             stored.activeToolIndex = previousToolIndex
