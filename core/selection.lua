@@ -7,10 +7,9 @@ local M = {}
 
 ---@param env table
 ---@param S table
----@param canvas table core/canvas.lua
 ---@param camera table core/camera.lua
-function M.init(env, S, canvas, camera)
-    M.env, M.S, M.canvas, M.camera = env, S, canvas, camera
+function M.init(env, S, camera)
+    M.env, M.S, M.camera = env, S, camera
 end
 
 ---Builds the mesh query for one material.
@@ -110,6 +109,9 @@ function M.draw()
     end
 
     if env.uiState.ctrlDown then
+        -- Capture the material now: the dialog is async and the hovered material will have
+        -- changed by the time the callback runs.
+        local materialName = S.hoveredMaterial
         os.openFileDialog({
             title = 'Open Base AO Map',
             folder = env.carDir,
@@ -121,7 +123,7 @@ function M.draw()
             flags = bit.bor(os.DialogFlags.PathMustExist, os.DialogFlags.FileMustExist)
         }, function(err, filename)
             if not err and filename then
-                M.startEditing(S.hoveredMaterial, textureFilename, filename)
+                M.startEditing(materialName, textureFilename, filename)
             end
         end)
     else

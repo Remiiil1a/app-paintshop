@@ -44,9 +44,18 @@ function M.disposeAll()
         S.selectedBrushOutline:dispose()
         S.selectedBrushOutline = nil
     end
-    S.editingCanvas = nil
-    S.aoCanvas = nil
-    S.maskingCanvas = nil
+    if S.editingCanvas then
+        S.editingCanvas:dispose()
+        S.editingCanvas = nil
+    end
+    if S.aoCanvas then
+        S.aoCanvas:dispose()
+        S.aoCanvas = nil
+    end
+    if S.maskingCanvas then
+        S.maskingCanvas:dispose()
+        S.maskingCanvas = nil
+    end
     S.maskingDirty = true
     S.selectedBrushOutlineDirty = true
 end

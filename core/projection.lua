@@ -92,10 +92,14 @@ function M.project(tool, tex, pos, dir, color, distance, previewMode, doNotUseTo
         size = size,
         depth = brush.paintThrough and 1e9 or distance,
         doubleSided = brush.paintThrough,
-        mask1 = S.maskingCanvas,
-        mask1Flags = bit.bor(render.TextureMaskFlags.AltUV, render.TextureMaskFlags.Default),
         blendMode = not previewMode and tool.blendMode or nil
     }
+    -- The masking canvas only exists once masking has been used; passing a nil texture with
+    -- mask flags set is not the same as passing no mask at all.
+    if S.maskingCanvas then
+        pr.mask1 = S.maskingCanvas
+        pr.mask1Flags = bit.bor(render.TextureMaskFlags.AltUV, render.TextureMaskFlags.Default)
+    end
     if tool.procProjParams and not doNotUseToolProjParams then
         tool:procProjParams(pr)
     end

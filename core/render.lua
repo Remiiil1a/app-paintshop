@@ -9,10 +9,9 @@ local M = {}
 ---@param env table
 ---@param S table
 ---@param stored table
----@param canvas table core/canvas.lua
 ---@param projection table core/projection.lua
-function M.init(env, S, stored, canvas, projection)
-    M.env, M.S, M.stored, M.canvas, M.projection = env, S, stored, canvas, projection
+function M.init(env, S, stored, projection)
+    M.env, M.S, M.stored, M.projection = env, S, stored, projection
 end
 
 ---Draws the editing canvas with the AO map multiplied in.
