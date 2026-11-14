@@ -713,6 +713,29 @@ local function DrawControl()
     end
 end
 
+-- The user palette is persisted as a stringified list of colours. A corrupted or empty
+-- entry would break every colour widget, so the parsed value is validated before use.
+local function loadUserPalette()
+    local parsed = stringify.tryParse(ac.storage.palette)
+    if type(parsed) ~= 'table' or #parsed == 0 then
+        return table.range(15, function(index, callbackData)
+            return rgbm(math.random(), math.random(), math.random(), 1)
+        end)
+    end
+    local result = {}
+    for _, color in ipairs(parsed) do
+        if type(color) == 'table' and color.r ~= nil then
+            table.insert(result, rgbm(color.r, color.g, color.b, color.a or 1))
+        end
+    end
+    if #result == 0 then
+        return table.range(15, function(index, callbackData)
+            return rgbm(math.random(), math.random(), math.random(), 1)
+        end)
+    end
+    return result
+end
+
 local palette = {
     builtin = {rgbm(1, 1, 1, 1), rgbm(0.8, 0.8, 0.8, 1), rgbm(0.6, 0.6, 0.6, 1), rgbm(1, 0, 0, 1), rgbm(1, 0.5, 0, 1),
                rgbm(1, 1, 0, 1), rgbm(0.5, 1, 0, 1), rgbm(0, 1, 0, 1), rgbm(0, 1, 0.5, 1), rgbm(0, 1, 1, 1),
@@ -722,9 +745,7 @@ local palette = {
                rgbm(0, 1, 0, 1):scale(0.5), rgbm(0, 1, 0.5, 1):scale(0.5), rgbm(0, 1, 1, 1):scale(0.5),
                rgbm(0, 0.5, 1, 1):scale(0.5), rgbm(0, 0, 1, 1):scale(0.5), rgbm(0.5, 0, 1, 1):scale(0.5),
                rgbm(1, 0, 1, 1):scale(0.5), rgbm(1, 0, 0.5, 1):scale(0.5)},
-    user = stringify.tryParse(ac.storage.palette) or table.range(15, function(index, callbackData)
-        return rgbm(math.random(), math.random(), math.random(), 1)
-    end)
+    user = loadUserPalette()
 }
 
 function palette.addToUserPalette(color)
@@ -733,7 +754,7 @@ function palette.addToUserPalette(color)
     end)
     if i ~= nil then
         table.remove(palette.user, i)
-    else
+    elseif #palette.user > 0 then
         table.remove(palette.user, 1)
     end
     table.insert(palette.user, color:clone())
