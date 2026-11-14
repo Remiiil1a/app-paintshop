@@ -1302,7 +1302,11 @@ local tools = {{
         return rgbm.new(stored.color.rgb, s.brush.brushAlpha)
     end,
     brushSize = function(s)
-        local size = ui.imageSize(s.brush.brushTex)
+        -- A stamp with no texture yet (empty category) would divide by a zero width.
+        local size = s.brush.brushTex ~= '' and ui.imageSize(s.brush.brushTex) or vec2(1, 1)
+        if size.x <= 0 then
+            size = vec2(1, 1)
+        end
         return vec2(s.brush.brushSize, s.brush.brushSize * size.y / size.x)
     end,
     stickerMode = true,
@@ -1585,6 +1589,9 @@ local tools = {{
     end,
     brushSize = function(s)
         local size = s._labelCanvas and ui.imageSize(s._labelCanvas) or vec2(1, 1)
+        if size.x <= 0 then
+            size = vec2(1, 1)
+        end
         return vec2(s.brush.brushSize, s.brush.brushSize * size.y / size.x)
     end,
     stickerMode = true,
