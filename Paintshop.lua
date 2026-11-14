@@ -816,9 +816,11 @@ local function ColorBlock(key)
         ui.sameLine(0, 0)
     end
     ui.newLine()
-    if shortcuts.swapColors() then
-        stored[key] = stored[key] == palette.user[#palette.user] and palette.user[#palette.user - 1] or
-                          palette.user[#palette.user]
+    if shortcuts.swapColors() and #palette.user > 0 then
+        -- Swap between the two most recently used colours.
+        local last = palette.user[#palette.user]
+        local previous = palette.user[#palette.user - 1] or last
+        stored[key] = stored[key] == last and previous or last
         palette.addToUserPalette(stored[key])
     end
 end
@@ -1451,8 +1453,12 @@ local tools = {{
     key = shortcuts.toolText,
     icon = icons.Text,
     ui = function(s)
-        if fonts == nil then
+        if fonts == nil or #fonts == 0 then
             rescanFonts()
+        end
+        if #fonts == 0 then
+            ui.textWrapped('No fonts available.')
+            return
         end
 
         local selectedFont = table.findFirst(fonts, function(item, _, sf)
