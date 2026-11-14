@@ -587,14 +587,14 @@ local function DrawControl()
         end)
     end
     ui.itemPopup('openMenu', function()
-        if ui.selectable('Clear canvas', false, canvasReady) and editingCanvas then
+        if ui.selectable('Clear canvas') and editingCanvas then
             addUndo(editingCanvas:backup())
             editingCanvas:clear(rgbm.new(stored.bgColor.rgb, 1))
         end
         if ui.itemHovered() then
             ui.setTooltip('Clears canvas using background (eraser) color')
         end
-        if ui.selectable('Import…', false, canvasReady) then
+        if ui.selectable('Import…') then
             os.openFileDialog({
                 title = 'Import',
                 folder = skinDir,
@@ -649,7 +649,7 @@ local function DrawControl()
         end
     end
     ui.itemPopup('saveMenu', function()
-        if ui.selectable('Save as…', false, canvasReady) then
+        if ui.selectable('Save as…') then
             os.saveFileDialog({
                 title = 'Save Image As',
                 folder = skinDir,
