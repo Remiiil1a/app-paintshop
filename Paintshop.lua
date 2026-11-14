@@ -21,6 +21,14 @@ local aoTexture
 -- match: the masking canvas is sampled through UVs of the editing canvas.
 local texSize = vec2(4096, 4096)
 
+-- Digit keys 0..9 set brush opacity, Photoshop style. Built as an explicit map keyed by
+-- the digit itself, so the lookup in BrushBaseBlock (`shortcuts.opacity[i]`, i = 0..9)
+-- always hits a real entry instead of depending on table.range's index base.
+local opacityShortcuts = {}
+for digit = 0, 9 do
+    opacityShortcuts[digit] = ui.shortcut(ui.KeyIndex.D0 + digit)
+end
+
 local shortcuts = {
     undo = ui.shortcut({
         key = ui.KeyIndex.Z,
@@ -75,9 +83,7 @@ local shortcuts = {
     arrowRight = ui.shortcut(ui.KeyIndex.Right),
     arrowUp = ui.shortcut(ui.KeyIndex.Up),
     arrowDown = ui.shortcut(ui.KeyIndex.Down),
-    opacity = table.range(9, 0, function(index)
-        return ui.shortcut(ui.KeyIndex.D0 + index), index
-    end)
+    opacity = opacityShortcuts
 }
 
 local icons = ui.atlasIcons('res/icons.png', 4, 4, {
@@ -730,7 +736,8 @@ local function BrushBaseBlock(brush, maxSize, stickerMode, noStepSize, noSymmetr
             selectedBrushOutlineDirty = true
         end
         for i = 0, 9 do -- changing opacity photoshop style
-            if shortcuts.opacity[i]() then
+            local shortcut = shortcuts.opacity[i]
+            if shortcut and shortcut() then
                 brush.brushAlpha = i == 0 and 1 or i / 10
             end
         end
