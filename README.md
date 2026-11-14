@@ -35,6 +35,24 @@ Note: Open and Save buttons have context menus with extra options. Also, brush a
 - With new skidmarks tools such as projecting other side, mirroring stamp, blur and smudge might not work propely in 0.1.78, this issue will be fixed in 0.1.79.
 - Context menus might misbehave and trigger button clicks with Discord fix enabled in general CSP settings. Again, will be fixed in 0.1.79.
 
+# Code layout
+
+`Paintshop.lua` is the entry point: it loads the modules, wires them together and forwards the
+callbacks the manifest asks for. Everything else lives in three folders:
+
+```
+core/   environment, state, storage, canvases, history, projection, painting, session
+tools/  one file per tool, plus the registry that owns the tool list
+gui/    icons, palette, shared widgets, toolbar, tool panel, 3D gizmo
+```
+
+Dependency direction is `gui -> tools -> core -> AC API`. Nothing in `core/` may reference a
+tool or a widget. `core/types.lua` documents the tool contract (which fields a tool must
+provide, what `brushSize()` returns, when `procBrushTex()` may return nil, and so on).
+
+Modules are loaded with `dofile()` against `__dirname` rather than `require()`, because the app
+folder is not guaranteed to be on `package.path`.
+
 # TODO
 
 - Layers;
