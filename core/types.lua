@@ -1,0 +1,155 @@
+-- Explicit interface definitions for the modules in this app.
+--
+-- This file is documentation only: it is never loaded at runtime, it exists so the tool
+-- contract is written down in one place instead of being implied by call sites.
+--
+-- The contract that used to be implicit:
+--   * `tool.name` must be unique and non-empty (it is used as an ImGui ID).
+--   * `tool.key` must exist and support `:down()`.
+--   * `tool.icon` must be an entry of the icon atlas.
+--   * `tool.ui(self)` runs every frame and must not leak canvases.
+--   * a tool with `brush` must also provide `brushColor()` and `brushSize()`.
+--   * `brushColor()` must return a fresh `rgbm` (callers multiply it in place).
+--   * `brushSize()` returns metres; a negative X means a mirrored projection.
+--   * `procBrushTex()` may return nil on the first frame.
+--   * `procBrushTex()` must restore `txDiffuse` and `ksAmbient` even on error.
+--   * `action()` only runs for tools without `brush`.
+--   * tool-private state lives in fields prefixed with `_`.
+
+---@class Paintshop.Env
+---@field appDir string
+---@field sim ac.Sim
+---@field uiState ac.UIState
+---@field car ac.Car
+---@field carNode ac.SceneReference
+---@field carMeshes ac.SceneReference
+---@field carDir string
+---@field skinDir string
+---@field texSize vec2
+---@field taaFix {On: integer, Off: integer}
+---@field brushesDir string
+---@field decalsDir string
+---@field fontsDir string
+---@field autosaveDir string
+
+---@class Paintshop.Brush
+---@field brushTex string|ui.ExtraCanvas
+---@field brushSize number metres
+---@field brushAspectMult number
+---@field brushStepSize number
+---@field brushAngle number degrees
+---@field brushRandomizedAngle boolean
+---@field brushAlpha number 0..1
+---@field brushMirror boolean
+---@field penMinRadiusMult number 0..1
+---@field withMirror boolean
+---@field paintThrough boolean
+---@field smoothing number 0..1
+
+---@class Paintshop.ToolState
+---@field shot? ac.GeometryShot
+---@field shotBlurred? ui.ExtraCanvas
+---@field shotSharpened? ui.ExtraCanvas
+---@field ksAmbient? number
+---@field rayPos? vec3
+---@field rayDir? vec3
+---@field labelText? string
+---@field labelDirty? boolean
+---@field labelCanvas? ui.ExtraCanvas
+---@field previewCanvas? ui.ExtraCanvas
+---@field color? rgbm
+---@field changing? boolean
+---@field moving? boolean
+---@field hitDistance? number
+---@field brushRandomAngle? number written by core/projection.lua
+
+---@class Paintshop.Tool
+---@field name string unique, used as an ImGui ID
+---@field key ui.Shortcut
+---@field icon any icon atlas entry
+---@field ui fun(self: Paintshop.Tool)
+---@field brush? Paintshop.Brush
+---@field brushColor? fun(self: Paintshop.Tool): rgbm
+---@field brushSize? fun(self: Paintshop.Tool): vec2
+---@field procBrushTex? fun(self: Paintshop.Tool, ray: ray, previewMode: boolean): any
+---@field procProjParams? fun(self: Paintshop.Tool, pr: Paintshop.ProjectionParams)
+---@field action? fun(self: Paintshop.Tool)
+---@field stickerMode? boolean
+---@field stickerNoAlignment? boolean
+---@field stickerContinious? boolean
+---@field blendMode? render.BlendMode
+
+---@class Paintshop.ProjectionParams
+---@field filename any
+---@field pos vec3
+---@field look vec3
+---@field up vec3
+---@field color rgbm
+---@field size vec2
+---@field depth number
+---@field doubleSided boolean
+---@field mask1? any
+---@field mask1Flags? integer
+---@field mask2? any
+---@field mask2Flags? integer
+---@field blendMode? render.BlendMode
+
+---@alias Paintshop.UndoAction 'memoryFootprint'|'update'|'dispose'
+---@alias Paintshop.UndoEntry fun(action?: Paintshop.UndoAction): any
+
+---@class Paintshop.Storage
+---@field color rgbm
+---@field bgColor rgbm
+---@field orbitCamera boolean
+---@field projectOtherSide boolean
+---@field eyeDropperRange integer 1..5
+---@field selectedStickerSet integer 1-based
+---@field alignSticker integer 1..3
+---@field activeToolIndex integer 1-based
+---@field selectedFont string
+---@field fontBold boolean
+---@field fontItalic boolean
+---@field hasPen boolean
+
+---@class Paintshop.State
+---@field selectedMeshes? ac.SceneReference
+---@field carTexture? string
+---@field aoTexture? string
+---@field saveFilename? string
+---@field changesMade integer
+---@field appVisible boolean
+---@field hoveredMaterial? string
+---@field carPreview? ac.GeometryShot
+---@field editingCanvas? ui.ExtraCanvas
+---@field aoCanvas? ui.ExtraCanvas
+---@field maskingCanvas? ui.ExtraCanvas
+---@field selectedBrushOutline? ui.ExtraCanvas
+---@field selectedBrushOutlineDirty boolean
+---@field accessibleData? ui.ExtraCanvasData
+---@field canvasPhase integer
+---@field undoStack Paintshop.UndoEntry[]
+---@field redoStack Paintshop.UndoEntry[]
+---@field maskingActive boolean
+---@field maskingPos vec3
+---@field maskingDir vec3
+---@field maskingPoints vec3[]
+---@field maskingCreatingFrom? vec3
+---@field maskingCreatingTo? vec3
+---@field maskingDragging integer
+---@field maskingStartMousePos? vec2
+---@field maskingDirty boolean
+---@field drawing boolean
+---@field ignoreMousePress boolean
+---@field lastRay? ray
+---@field brushDistance number
+---@field smoothRayDir? vec3
+---@field camera? ac.GrabbedCamera
+---@field cameraAngle vec2
+---@field brushes? table[]
+---@field stickers? table[]
+---@field selectedStickerSet? table
+---@field fonts? table[]
+---@field debugTex? any
+---@field colorPickerEditing boolean
+
+return {}
