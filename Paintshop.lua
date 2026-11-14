@@ -543,11 +543,16 @@ local function DrawControl()
     local title = saveFilename or (carTexture and (carTexture .. ' (new)')) or 'new texture'
     ac.setWindowTitle('paintshop', string.gsub(title, '.+[/\\:]', '') .. (changesMade ~= 0 and '*' or ''))
 
+    -- The canvas is created by cameraUpdate() on the first frame of a session, so the
+    -- toolbar can be drawn before it exists.
+    local canvasReady = editingCanvas ~= nil
+
     if IconButton(icons.Undo, nil, false, #undoStack > 0) or #undoStack > 0 and shortcuts.undo() then
         stepUndo()
     end
     if ui.itemHovered() then
-        ui.setTooltip(string.format('Undo (Ctrl+Z)', #undoStack, math.ceil(undoMemoryFootpring() / (1024 * 1024))))
+        ui.setTooltip(string.format('Undo (Ctrl+Z)\n%d steps, %.1f MB', #undoStack,
+            undoMemoryFootpring() / (1024 * 1024)))
     end
     ui.sameLine(0, 4)
     if IconButton(icons.Redo, string.format('Redo (Ctrl+Y)', #redoStack), false, #redoStack > 0) or #redoStack > 0 and
@@ -566,7 +571,7 @@ local function DrawControl()
                 mask = '*.png;*.jpg;*.jpeg;*.dds'
             }}
         }, function(err, filename)
-            if not err and filename then
+            if not err and filename and editingCanvas then
                 ui.setAsynchronousImagesLoading(false)
                 addUndo(editingCanvas:backup())
                 editingCanvas:clear(rgbm.new(stored.bgColor.rgb, 1)):update(function()
@@ -582,14 +587,14 @@ local function DrawControl()
         end)
     end
     ui.itemPopup('openMenu', function()
-        if ui.selectable('Clear canvas') then
+        if ui.selectable('Clear canvas', false, canvasReady) and editingCanvas then
             addUndo(editingCanvas:backup())
             editingCanvas:clear(rgbm.new(stored.bgColor.rgb, 1))
         end
         if ui.itemHovered() then
             ui.setTooltip('Clears canvas using background (eraser) color')
         end
-        if ui.selectable('Import…') then
+        if ui.selectable('Import…', false, canvasReady) then
             os.openFileDialog({
                 title = 'Import',
                 folder = skinDir,
@@ -598,7 +603,7 @@ local function DrawControl()
                     mask = '*.png;*.jpg;*.jpeg;*.dds'
                 }}
             }, function(err, filename)
-                if not err and filename then
+                if not err and filename and editingCanvas then
                     ui.setAsynchronousImagesLoading(false)
                     addUndo(editingCanvas:backup())
                     editingCanvas:update(function()
@@ -616,8 +621,8 @@ local function DrawControl()
     end)
     ui.sameLine(0, 4)
     if IconButton(icons.Save,
-        'Save image (Ctrl+S)\n\nImage saved like that would not have antialiasing or ambient occlusion. To apply texture, use “Export texture”\nbutton on the right.\n\n(There is also a “Save as” option in context menu of this button.)') or
-        shortcuts.save() then
+        'Save image (Ctrl+S)\n\nImage saved like that would not have antialiasing or ambient occlusion. To apply texture, use “Export texture”\nbutton on the right.\n\n(There is also a “Save as” option in context menu of this button.)',
+        false, canvasReady) or canvasReady and shortcuts.save() then
         if saveFilename ~= nil then
             editingCanvas:save(saveFilename)
             changesMade = 0
@@ -635,7 +640,7 @@ local function DrawControl()
                 fileName = carTexture and string.gsub(carTexture, '.+[/\\:]', ''):gsub('%.[a-zA-Z]+$', '.png'),
                 defaultExtension = 'dds'
             }, function(err, filename)
-                if not err and filename then
+                if not err and filename and editingCanvas then
                     editingCanvas:save(filename)
                     saveFilename = filename
                     changesMade = 0
@@ -644,7 +649,7 @@ local function DrawControl()
         end
     end
     ui.itemPopup('saveMenu', function()
-        if ui.selectable('Save as…') then
+        if ui.selectable('Save as…', false, canvasReady) then
             os.saveFileDialog({
                 title = 'Save Image As',
                 folder = skinDir,
@@ -658,7 +663,7 @@ local function DrawControl()
                 fileName = carTexture and string.gsub(carTexture, '.+[/\\:]', ''):gsub('%.[a-zA-Z]+$', '.png'),
                 defaultExtension = 'dds'
             }, function(err, filename)
-                if not err and filename then
+                if not err and filename and editingCanvas then
                     editingCanvas:save(filename)
                     saveFilename = filename
                     changesMade = 0
@@ -672,8 +677,8 @@ local function DrawControl()
     end)
     ui.sameLine(0, 4)
     if IconButton(icons.Export,
-        'Export texture (Ctrl+Shift+Alt+S)\n\nImage saved like that is ready to use, with ambient occlusion and everything. To save an intermediate\nresult and continue working on it later, use “Save” button on the left.') or
-        shortcuts.export() then
+        'Export texture (Ctrl+Shift+Alt+S)\n\nImage saved like that is ready to use, with ambient occlusion and everything. To save an intermediate\nresult and continue working on it later, use “Save” button on the left.',
+        false, canvasReady) or canvasReady and shortcuts.export() then
         os.saveFileDialog({
             title = 'Export Texture',
             folder = skinDir,
@@ -691,7 +696,7 @@ local function DrawControl()
             fileTypeIndex = 3,
             defaultExtension = 'dds'
         }, function(err, filename)
-            if not err and filename then
+            if not err and filename and aoCanvas and editingCanvas then
                 aoCanvas:update(function(dt)
                     drawWithAO(editingCanvas, aoTexture or carTexture)
                 end):save(filename)
