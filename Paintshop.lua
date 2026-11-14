@@ -2179,6 +2179,12 @@ local function draggingPoint(index, point, ray)
         maskingCreatingFrom = nil
         addUndo(maskingBackup())
     elseif maskingDragging == index then
+        -- maskingStartMousePos is only set when a drag starts, but guard anyway: a stale
+        -- index from a previous session would otherwise index nil here.
+        if maskingStartMousePos == nil then
+            maskingDragging = 0
+            return
+        end
         maskingStartMousePos:add(uiState.mouseDelta)
         local r = render.createPointRay(maskingStartMousePos)
         local d = rayPlane(r, index > 2)
@@ -2222,6 +2228,9 @@ function script.windowMain(dt)
     if brushes == nil then
         rescanBrushes()
         rescanStickers()
+    end
+    if fonts == nil then
+        rescanFonts()
     end
 
     ui.pushItemWidth(210)
