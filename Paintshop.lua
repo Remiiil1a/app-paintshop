@@ -121,6 +121,17 @@ local hoveredMaterial
 local camera ---@type ac.GrabbedCamera
 local appVisible = false
 
+-- Builds the mesh query for one material. Material names can contain characters that the
+-- query parser treats as syntax, so the name is quoted; if the query still matches nothing
+-- the caller gets an empty reference instead of a broken one.
+local function findMeshesByMaterial(materialName)
+    if materialName == nil or materialName == '' then
+        return nil
+    end
+    local quoted = materialName:gsub('"', '')
+    return carNode:findMeshes('{ material:"' .. quoted .. '" & lod:A }')
+end
+
 local function MeshSelection()
     local ray = render.createMouseRay()
     local ref = ac.emptySceneReference()
@@ -137,19 +148,25 @@ local function MeshSelection()
             hoveredMaterial = ref:materialName()
             if carPreview then
                 carPreview:dispose()
+                carPreview = nil
             end
-            carPreview = ac.GeometryShot(carNode:findMeshes('{ material:' .. hoveredMaterial .. ' & lod:A }'),
-                vec2(420, 320))
-            carPreview:setClearColor(rgbm(0.14, 0.14, 0.14, 1))
+            local meshes = findMeshesByMaterial(hoveredMaterial)
+            if meshes then
+                carPreview = ac.GeometryShot(meshes, vec2(420, 320))
+                carPreview:setClearColor(rgbm(0.14, 0.14, 0.14, 1))
+            end
         end
 
-        local mat = mat4x4.rotation(ui.time() * 0.1, vec3(0, 1, 0)):mul(car.bodyTransform)
-        carPreview:update(mat:transformPoint(car.aabbCenter + vec3(0, 2, 4)), mat:transformVector(vec3(0, -1, -2)), nil,
-            50)
-        ui.image(carPreview, vec2(210, 160))
-        ui.offsetCursorY(20)
+        if carPreview then
+            local mat = mat4x4.rotation(ui.time() * 0.1, vec3(0, 1, 0)):mul(car.bodyTransform)
+            carPreview:update(mat:transformPoint(car.aabbCenter + vec3(0, 2, 4)),
+                mat:transformVector(vec3(0, -1, -2)), nil, 50)
+            ui.image(carPreview, vec2(210, 160))
+            ui.offsetCursorY(20)
+        end
 
-        local size = ui.imageSize(ref:getTextureSlotFilename('txDiffuse'))
+        local textureFilename = ref:getTextureSlotFilename('txDiffuse')
+        local size = textureFilename and ui.imageSize(textureFilename) or vec2()
         if size.x > 0 and size.y > 0 then
 
             ui.textWrapped(
@@ -162,14 +179,14 @@ local function MeshSelection()
             ui.popFont()
 
             ui.setShadingOffset(1, 0, 1, 1)
-            ui.image(ref:getTextureSlotFilename('txDiffuse'), vec2(210, 210 * size.y / size.x))
+            ui.image(textureFilename, vec2(210, 210 * size.y / size.x))
             ui.resetShadingOffset()
 
             if uiState.shiftDown and not uiState.altDown and uiState.isMouseLeftKeyClicked and
                 not uiState.wantCaptureMouse then
                 if uiState.ctrlDown then
-                    local _selectedMeshes = carNode:findMeshes('{ material:' .. hoveredMaterial .. ' & lod:A }')
-                    local _carTexture = ref:getTextureSlotFilename('txDiffuse')
+                    local _selectedMeshes = findMeshesByMaterial(hoveredMaterial)
+                    local _carTexture = textureFilename
                     os.openFileDialog({
                         title = 'Open Base AO Map',
                         folder = carDir,
@@ -180,7 +197,7 @@ local function MeshSelection()
                         addAllFilesFileType = true,
                         flags = bit.bor(os.DialogFlags.PathMustExist, os.DialogFlags.FileMustExist)
                     }, function(err, filename)
-                        if not err and filename then
+                        if not err and filename and _selectedMeshes then
                             selectedMeshes = _selectedMeshes
                             carTexture = _carTexture
                             aoTexture = filename
@@ -191,12 +208,15 @@ local function MeshSelection()
                         end
                     end)
                 else
-                    selectedMeshes = carNode:findMeshes('{ material:' .. hoveredMaterial .. ' & lod:A }')
-                    carTexture = ref:getTextureSlotFilename('txDiffuse')
-                    aoTexture = nil
-                    camera = ac.grabCamera('Paintshop')
-                    if camera then
-                        camera.ownShare = 0
+                    local meshes = findMeshesByMaterial(hoveredMaterial)
+                    if meshes then
+                        selectedMeshes = meshes
+                        carTexture = textureFilename
+                        aoTexture = nil
+                        camera = ac.grabCamera('Paintshop')
+                        if camera then
+                            camera.ownShare = 0
+                        end
                     end
                 end
             end
