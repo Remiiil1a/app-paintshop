@@ -393,6 +393,13 @@ local function rescanStickers()
             end)
         }
     end)
+    -- The stored index is a 1-based position in the scanned list, so it goes stale as soon
+    -- as a category is added or removed. Clamp it before it is used to index `stickers`.
+    if #stickers == 0 then
+        selectedStickerSet = nil
+        return
+    end
+    stored.selectedStickerSet = math.clamp(stored.selectedStickerSet or 1, 1, #stickers)
     selectedStickerSet = stickers[stored.selectedStickerSet]
 end
 
@@ -886,6 +893,10 @@ local function BrushBaseBlock(brush, maxSize, stickerMode, noStepSize, noSymmetr
 end
 
 local function BrushBlock(brush)
+    if #brushes == 0 then
+        ui.textWrapped('No brushes found. Add PNG files to the brushes directory.')
+        return
+    end
     if brush.brushTex == '' then
         brush.brushTex = brushes[1][2]
     end
@@ -1069,29 +1080,39 @@ local tools = {{
         ui.offsetCursorY(20)
 
         ui.header('Stamp:')
-        ui.combo('##set', string.format('Set: %s', selectedStickerSet.name), ui.ComboFlags.None, function()
-            for i = 1, #stickers do
-                if ui.selectable(stickers[i].name, stickers[i] == selectedStickerSet) then
-                    selectedStickerSet = stickers[i]
-                    stored.selectedStickerSet = i
-                end
-            end
-            if ui.selectable('New category…') then
-                ui.modalPrompt('Create new category', 'Category name:', nil, function(value)
-                    if #value > 0 and io.createDir(decalsDir .. '/' .. value) then
-                        ui.toast(ui.Icons.Confirm, 'New category created: ' .. tostring(value))
-                        rescanStickers()
-                        selectedStickerSet = table.findFirst(stickers, function(item)
-                            return item.name == value
-                        end)
-                    else
-                        ui.toast(ui.Icons.Warning, 'Couldn’t create a new category: ' .. tostring(value))
+        ui.combo('##set', string.format('Set: %s', selectedStickerSet and selectedStickerSet.name or 'none'),
+            ui.ComboFlags.None, function()
+                for i = 1, #stickers do
+                    if ui.selectable(stickers[i].name, stickers[i] == selectedStickerSet) then
+                        selectedStickerSet = stickers[i]
+                        stored.selectedStickerSet = i
                     end
-                end)
-            end
-        end)
+                end
+                if ui.selectable('New category…') then
+                    ui.modalPrompt('Create new category', 'Category name:', nil, function(value)
+                        if #value > 0 and io.createDir(decalsDir .. '/' .. value) then
+                            ui.toast(ui.Icons.Confirm, 'New category created: ' .. tostring(value))
+                            rescanStickers()
+                            selectedStickerSet = table.findFirst(stickers, function(item)
+                                return item.name == value
+                            end)
+                        else
+                            ui.toast(ui.Icons.Warning, 'Couldn’t create a new category: ' .. tostring(value))
+                        end
+                    end)
+                end
+            end)
+
+        if selectedStickerSet == nil then
+            ui.textWrapped('No sticker categories found. Add a folder with PNG files to the decals directory.')
+            return
+        end
 
         local items = selectedStickerSet.items
+        if #items == 0 then
+            ui.textWrapped('This category has no stickers yet.')
+            return
+        end
         if s.brush.brushTex == '' then
             s.brush.brushTex = items[1][2]
         end
