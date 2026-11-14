@@ -212,6 +212,9 @@ local editingCanvas, aoCanvas, maskingCanvas ---@type ui.ExtraCanvas
 local editingCanvasPhase = 0
 local lastRay ---@type ray
 
+-- Debug overlay: set `debug.tex` to a texture to draw it in the corner of the window.
+local debug = {tex = nil}
+
 local stored = ac.storage {
     color = rgbm(0, 0.2, 1, 0.5),
     bgColor = rgbm(1, 1, 1, 1),
@@ -2136,14 +2139,12 @@ function script.windowMain(dt)
     end
     ui.popItemWidth()
 
-    if DebugTex then
+    if debug.tex then
         ui.setShadingOffset(1, 0, 1, 1)
-        ui.image(DebugTex, 210, rgbm.colors.white, rgbm.colors.red)
+        ui.image(debug.tex, 210, rgbm.colors.white, rgbm.colors.red)
         ui.resetShadingOffset()
     end
 end
-
-DebugTex = nil
 
 function script.onShowWindowMain()
     appVisible = true
