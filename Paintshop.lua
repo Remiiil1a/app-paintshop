@@ -1595,9 +1595,12 @@ local tools = {{
             maskingCreatingFrom = car.worldToLocal:transformPoint(ray.pos + ray.dir * d)
             s._moving = false
         elseif maskingCreatingFrom then
+            -- When the cursor leaves the mesh mid-drag, raycast returns -1; fall back to the
+            -- last hit distance instead of projecting a point behind the camera.
+            local hitDistance = d ~= -1 and d or s._d
             if not uiState.isMouseLeftKeyDown then
-                if s._moving then
-                    local endingPos = car.worldToLocal:transformPoint(ray.pos + ray.dir * d)
+                if s._moving and hitDistance then
+                    local endingPos = car.worldToLocal:transformPoint(ray.pos + ray.dir * hitDistance)
                     applyQuickMasking(maskingCreatingFrom, endingPos)
                     s._moving = false
                 end
@@ -1608,8 +1611,8 @@ local tools = {{
                 s._moving = true
                 maskingActive = true
             end
-            if s._moving then
-                maskingCreatingTo = car.worldToLocal:transformPoint(ray.pos + ray.dir * s._d)
+            if s._moving and hitDistance then
+                maskingCreatingTo = car.worldToLocal:transformPoint(ray.pos + ray.dir * hitDistance)
             end
         end
     end
@@ -1635,7 +1638,9 @@ local tools = {{
         if s._color and not ui.mouseBusy() then
             ColorTooltip(s._color)
             if uiState.isMouseLeftKeyDown then
-                stored.color = s._color
+                -- Clone: stored.color must not alias the tool's scratch colour, or later
+                -- sampling would silently rewrite the saved foreground colour.
+                stored.color = s._color:clone()
                 s._changing = true
             elseif s._changing then
                 s._changing = false
@@ -1644,21 +1649,25 @@ local tools = {{
         end
     end,
     action = function(s)
-        if accessibleData ~= nil then
+        if accessibleData ~= nil and selectedMeshes ~= nil then
             local ray = render.createMouseRay()
             local uv = vec2()
             if selectedMeshes:raycast(ray, false, nil, nil, uv) ~= -1 then
                 uv.x = uv.x - math.floor(uv.x)
                 uv.y = uv.y - math.floor(uv.y)
-                local c = uv * accessibleData:size()
-                local range = 1 + (stored.eyeDropperRange - 1) * 2
+                local canvasSize = accessibleData:size()
+                local c = uv * canvasSize
+                local range = 1 + (math.clamp(stored.eyeDropperRange or 1, 1, 5) - 1) * 2
                 local offset = -math.ceil(range / 2)
                 local cx, cy = math.floor(c.x) + offset, math.floor(c.y) + offset
                 local colorPick = rgbm()
                 s._color:set(colorPick)
                 for x = 1, range do
                     for y = 1, range do
-                        s._color:add(accessibleData:colorTo(colorPick, cx + x, cy + y))
+                        -- Sampling near an edge would read outside the canvas.
+                        local px = math.clamp(cx + x, 0, canvasSize.x - 1)
+                        local py = math.clamp(cy + y, 0, canvasSize.y - 1)
+                        s._color:add(accessibleData:colorTo(colorPick, px, py))
                     end
                 end
                 s._color:scale(1 / (range * range))
