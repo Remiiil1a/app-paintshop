@@ -92,14 +92,13 @@ function M.project(tool, tex, pos, dir, color, distance, previewMode, doNotUseTo
         size = size,
         depth = brush.paintThrough and 1e9 or distance,
         doubleSided = brush.paintThrough,
+        -- The masking canvas is created lazily, but the mask flags are always set: the host
+        -- treats "mask1 with flags" as the masking path, and dropping the flags when the
+        -- canvas is still nil would silently change how the projection is composited.
+        mask1 = S.maskingCanvas,
+        mask1Flags = bit.bor(render.TextureMaskFlags.AltUV, render.TextureMaskFlags.Default),
         blendMode = not previewMode and tool.blendMode or nil
     }
-    -- The masking canvas only exists once masking has been used; passing a nil texture with
-    -- mask flags set is not the same as passing no mask at all.
-    if S.maskingCanvas then
-        pr.mask1 = S.maskingCanvas
-        pr.mask1Flags = bit.bor(render.TextureMaskFlags.AltUV, render.TextureMaskFlags.Default)
-    end
     if tool.procProjParams and not doNotUseToolProjParams then
         tool:procProjParams(pr)
     end

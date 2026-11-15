@@ -25,7 +25,13 @@ function M.ensure()
     end
     S.editingCanvas = ui.ExtraCanvas(M.env.texSize):clear(rgbm.new(M.stored.bgColor.rgb, 1))
     S.aoCanvas = ui.ExtraCanvas(M.env.texSize, 4, render.AntialiasingMode.CMAA)
-    S.selectedMeshes:setMaterialTexture('txDiffuse', S.aoCanvas)
+    -- This is the only place the editing canvases are bound to the car. If the mesh reference
+    -- is empty (a material query that matched nothing), the call silently does nothing and the
+    -- user paints into a canvas that is never displayed, so report it instead of failing mute.
+    local ok, err = pcall(S.selectedMeshes.setMaterialTexture, S.selectedMeshes, 'txDiffuse', S.aoCanvas)
+    if not ok then
+        ac.warn('Paintshop: could not bind the editing canvas to the selected mesh: ' .. tostring(err))
+    end
 end
 
 ---Marks the editing canvas as changed.
@@ -34,28 +40,32 @@ function M.bumpPhase()
 end
 
 ---Releases every canvas and canvas-derived resource. Called when a session ends.
+---
+---Dropping the reference is what matters: the host frees the texture once nothing points at
+---it. `dispose()` is called when the object provides one, but a missing method must not
+---abort the teardown half-way, or the stale canvas would survive into the next session and
+---`ensure()` would never bind a fresh one to the car.
+local function release(canvas)
+    if canvas == nil then
+        return
+    end
+    if type(canvas.dispose) == 'function' then
+        pcall(canvas.dispose, canvas)
+    end
+end
+
 function M.disposeAll()
     local S = M.S
-    if S.accessibleData then
-        S.accessibleData:dispose()
-        S.accessibleData = nil
-    end
-    if S.selectedBrushOutline then
-        S.selectedBrushOutline:dispose()
-        S.selectedBrushOutline = nil
-    end
-    if S.editingCanvas then
-        S.editingCanvas:dispose()
-        S.editingCanvas = nil
-    end
-    if S.aoCanvas then
-        S.aoCanvas:dispose()
-        S.aoCanvas = nil
-    end
-    if S.maskingCanvas then
-        S.maskingCanvas:dispose()
-        S.maskingCanvas = nil
-    end
+    release(S.accessibleData)
+    S.accessibleData = nil
+    release(S.selectedBrushOutline)
+    S.selectedBrushOutline = nil
+    release(S.editingCanvas)
+    S.editingCanvas = nil
+    release(S.aoCanvas)
+    S.aoCanvas = nil
+    release(S.maskingCanvas)
+    S.maskingCanvas = nil
     S.maskingDirty = true
     S.selectedBrushOutlineDirty = true
 end

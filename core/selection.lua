@@ -1,7 +1,4 @@
 -- Mesh selection: hover a car mesh, preview it, and start editing on Shift+click.
---
--- Material names can contain characters the mesh query parser treats as syntax, so the name
--- is quoted before being spliced into the query.
 
 local M = {}
 
@@ -13,18 +10,18 @@ function M.init(env, S, camera)
 end
 
 ---Builds the mesh query for one material.
+---
+---The query parser reads the material name verbatim up to the next space or `&`, so the name
+---must NOT be quoted: `material:"foo"` looks for a material literally named `"foo"` and
+---matches nothing. A query that matches nothing still returns a valid (empty) reference, so
+---the caller cannot tell the difference from a successful match.
 ---@param materialName string?
----@return ac.SceneReference? nil when the query matches nothing
+---@return ac.SceneReference? nil when there is no name to query
 function M.findMeshesByMaterial(materialName)
     if materialName == nil or materialName == '' then
         return nil
     end
-    local quoted = materialName:gsub('"', '')
-    local meshes = M.env.carNode:findMeshes('{ material:"' .. quoted .. '" & lod:A }')
-    if meshes == nil then
-        return nil
-    end
-    return meshes
+    return M.env.carNode:findMeshes('{ material:' .. materialName .. ' & lod:A }')
 end
 
 ---Starts an editing session on the hovered material.
