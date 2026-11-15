@@ -25,13 +25,24 @@ function M.findMeshesByMaterial(materialName)
 end
 
 ---Starts an editing session on the hovered material.
+---
+---A query that matches nothing still returns a usable reference, so the result is verified by
+---reading a material property back: an empty reference returns nothing for it. Without this
+---check a bad query looks exactly like a successful selection until the user notices that
+---painting has no visible effect.
 ---@param materialName string
 ---@param textureFilename string
 ---@param aoMap string? custom AO map, nil to reuse the car texture
+---@return boolean started
 function M.startEditing(materialName, textureFilename, aoMap)
     local S = M.S
     local meshes = M.findMeshesByMaterial(materialName)
     if meshes == nil then
+        return false
+    end
+    if meshes:getMaterialPropertyValue('ksAmbient') == nil then
+        ac.warn(string.format('Paintshop: material "%s" matched no meshes, cannot start editing',
+            tostring(materialName)))
         return false
     end
     S.selectedMeshes = meshes
